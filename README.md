@@ -5,7 +5,7 @@
 > [!Important]
 > Introduzca a continuación su nombre y apellidos:
 >
-> Fulano Mengano Zutano
+> Javier González Montesinos
 
 ## Aviso Importante
 
@@ -208,11 +208,100 @@ pantalla, debe hacerse en formato *markdown*).
 
 ##### Código de `estereo2mono()`
 
+```python
+def estereo2mono(ficEste, ficMono, canal=2):
+    """Convierte un WAVE estereo de 16 bits en uno mono de 16 bits."""
+    onda = _lee_wave(ficEste)
+    if onda["canales"] != STEREO or onda["bits"] != BITS_16:
+        raise ValueError("El fichero de entrada debe ser estereo de 16 bits")
+    if canal not in (0, 1, 2, 3):
+        raise ValueError("El canal debe ser 0, 1, 2 o 3")
+
+    muestras = onda["muestras"]
+    pares = zip(muestras[0::2], muestras[1::2])
+    operaciones = (
+        lambda izquierda, derecha: izquierda,
+        lambda izquierda, derecha: derecha,
+        lambda izquierda, derecha: _mitad(izquierda + derecha),
+        lambda izquierda, derecha: _mitad(izquierda - derecha),
+    )
+    mono = [operaciones[canal](izquierda, derecha) for izquierda, derecha in pares]
+
+    _escribe_wave(ficMono, MONO, onda["frecuencia"], BITS_16, mono)
+```
+
 ##### Código de `mono2estereo()`
+
+```python
+def mono2estereo(ficIzq, ficDer, ficEste):
+    """Combina dos WAVE mono de 16 bits en un WAVE estereo de 16 bits."""
+    izquierda = _lee_wave(ficIzq)
+    derecha = _lee_wave(ficDer)
+
+    if izquierda["canales"] != MONO or derecha["canales"] != MONO:
+        raise ValueError("Los ficheros de entrada deben ser monofonicos")
+    if izquierda["bits"] != BITS_16 or derecha["bits"] != BITS_16:
+        raise ValueError("Los ficheros de entrada deben ser de 16 bits")
+    if izquierda["frecuencia"] != derecha["frecuencia"]:
+        raise ValueError("Las frecuencias de muestreo deben coincidir")
+    if len(izquierda["muestras"]) != len(derecha["muestras"]):
+        raise ValueError("Los dos canales deben tener la misma duracion")
+
+    estereo = [
+        muestra
+        for par in zip(izquierda["muestras"], derecha["muestras"])
+        for muestra in par
+    ]
+
+    _escribe_wave(ficEste, STEREO, izquierda["frecuencia"], BITS_16, estereo)
+```
 
 ##### Código de `codEstereo()`
 
+```python
+def codEstereo(ficEste, ficCod):
+    """Codifica un WAVE estereo de 16 bits como WAVE mono de 32 bits."""
+    onda = _lee_wave(ficEste)
+    if onda["canales"] != STEREO or onda["bits"] != BITS_16:
+        raise ValueError("El fichero de entrada debe ser estereo de 16 bits")
+
+    pares = zip(onda["muestras"][0::2], onda["muestras"][1::2])
+    codificado = [
+        (_mitad(izquierda + derecha) << 16)
+        | (_mitad(izquierda - derecha) & 0xFFFF)
+        for izquierda, derecha in pares
+    ]
+
+    _escribe_wave(ficCod, MONO, onda["frecuencia"], BITS_32, codificado)
+```
+
 ##### Código de `decEstereo()`
+
+```python
+def decEstereo(ficCod, ficEste):
+    """Decodifica un WAVE mono de 32 bits en un WAVE estereo de 16 bits."""
+    onda = _lee_wave(ficCod)
+    if onda["canales"] != MONO or onda["bits"] != BITS_32:
+        raise ValueError("El fichero de entrada debe ser mono de 32 bits")
+
+    semisumas = [muestra >> 16 for muestra in onda["muestras"]]
+    semidiferencias = [
+        (muestra & 0xFFFF) - 0x10000
+        if muestra & 0x8000
+        else muestra & 0xFFFF
+        for muestra in onda["muestras"]
+    ]
+    estereo = [
+        muestra
+        for semisuma, semidiferencia in zip(semisumas, semidiferencias)
+        for muestra in (
+            _clip16(semisuma + semidiferencia),
+            _clip16(semisuma - semidiferencia),
+        )
+    ]
+
+    _escribe_wave(ficEste, STEREO, onda["frecuencia"], BITS_16, estereo)
+```
 
 #### Subida del resultado al repositorio GitHub y *pull-request*
 
