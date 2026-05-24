@@ -1,9 +1,5 @@
-"""Funciones para manipular senales WAVE estereo.
-
-Alumno: Javier Gonzalez
-
-Este modulo permite separar, combinar, codificar y decodificar senales WAVE
-PCM usando solamente la biblioteca struct para leer y escribir datos binarios.
+"""
+Alumno: Javier Gonzalez Montesinos
 """
 
 import struct
